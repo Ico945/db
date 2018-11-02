@@ -3,11 +3,14 @@ package com.alibabacloud.polar_race.engine.common;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Data_store {
     private File dir;
     private List<File> files;
     private Location last_file_location = new Location();
+    private ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     // 初始化，判断文件夹是否存在
     public Data_store(String dir_) {
@@ -28,31 +31,37 @@ public class Data_store {
         }
     }
 
-    public boolean Append(byte[] value) {
-        // 判断文件大小
-        boolean result = false;
-        if (files.size() == 0 || files.get(files.size()-1).length() == Tool.SingleFileSize) {
+    public Location Append(byte[] value) {
+        readWriteLock.writeLock().lock();
+
+        Location result = new Location();
+        // 判断文件大小,放不下的话新建一个文件
+        if (files.size() == 0 || files.get(files.size()-1).length()+value.length > Tool.SingleFileSize) {
             last_file_location.file_no++;
             File newfile = new File(dir + "/" + Tool.DataFilePrefix + last_file_location.file_no);
             files.add(newfile);
         }
         File last_file = files.get(files.size()-1);
+        result.offset = (int)last_file.length();
+        result.len = value.length;
+        result.file_no = last_file_location.file_no;
         // 写文件
         try {
             FileOutputStream writer = new FileOutputStream(last_file, true);
             writer.write(value);
             writer.close();
+
         } catch (IOException e) {
             e.printStackTrace();
-            return result;
+        } finally {
+            readWriteLock.writeLock().unlock();
         }
-
-        result = true;
         return result;
 
     }
 
     public byte[] Read(Location location) {
+        readWriteLock.readLock().lock();
         byte[] result = new byte[location.len];
         byte[] bytes = new byte[Tool.SingleFileSize];
         String file_name = Tool.DataFilePrefix + location.file_no;
@@ -63,6 +72,8 @@ public class Data_store {
                 result[i] = bytes[location.offset+i];
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            readWriteLock.readLock().unlock();
         }
         return result;
     }
