@@ -31,23 +31,41 @@ public class Data_store {
         }
     }
 
-    public Location Append(byte[] value) {
-        readWriteLock.writeLock().lock();
-
+    public Location Append(byte[] value, Location location) {
         Location result = new Location();
-        // 判断文件大小,放不下的话新建一个文件
-        if (files.size() == 0 || files.get(files.size()-1).length()+value.length > Tool.SingleFileSize) {
-            last_file_location.file_no++;
-            File newfile = new File(dir + "/" + Tool.DataFilePrefix + last_file_location.file_no);
-            files.add(newfile);
+
+        readWriteLock.writeLock().lock();
+        File last_file;
+
+        // 添加文件的情况
+        if (location.file_no == 0) {
+            // 需要新建文件
+            int file_count;
+            if ((file_count = files.size())==0) {
+                location.file_no++;
+            } else if (files.get(file_count-1).length()+value.length>Tool.SingleFileSize) {
+                location.file_no = file_count+1;
+            } else {
+                location.file_no = file_count;
+                location.offset = (int)files.get(file_count-1).length();
+            }
+            last_file = new File(dir + "/" + Tool.DataFilePrefix + location.file_no);
+            if (!files.contains(last_file))
+                files.add(last_file);
+
+            result.offset = 0;
+            result.len = value.length;
+            result.file_no = location.file_no;
+        } else {
+            // 修改
+            last_file = new File(dir + "/" + Tool.DataFilePrefix + location.file_no);
+            result = location;
         }
-        File last_file = files.get(files.size()-1);
-        result.offset = (int)last_file.length();
-        result.len = value.length;
-        result.file_no = last_file_location.file_no;
+
         // 写文件
         try {
-            FileOutputStream writer = new FileOutputStream(last_file, true);
+            RandomAccessFile writer = new RandomAccessFile(last_file, "rw");
+            writer.seek(location.offset);
             writer.write(value);
             writer.close();
 
@@ -57,19 +75,18 @@ public class Data_store {
             readWriteLock.writeLock().unlock();
         }
         return result;
-
     }
 
     public byte[] Read(Location location) {
         readWriteLock.readLock().lock();
-        byte[] result = new byte[location.len];
-        byte[] bytes = new byte[Tool.SingleFileSize];
         String file_name = Tool.DataFilePrefix + location.file_no;
+        byte[] result = new byte[location.len];
+
         try {
-            InputStream in = new BufferedInputStream(new FileInputStream(new File(dir+"//"+file_name)));
-            in.read(bytes);
-            for (int i=0; i<location.len; i++)
-                result[i] = bytes[location.offset+i];
+            File file = new File(dir + "/" + file_name);
+            RandomAccessFile raf = new RandomAccessFile(file, "r");
+            raf.seek(location.offset);
+            raf.read(result);
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
