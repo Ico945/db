@@ -51,7 +51,6 @@ public class test {
         EngineRace race = new EngineRace();
         try{
             race.open(dir_path);
-
             race.write(key, value);
             byte[] result = race.read(key);
             for (byte b : result) {
