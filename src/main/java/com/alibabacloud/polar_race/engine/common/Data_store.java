@@ -14,7 +14,7 @@ public class Data_store {
 
     // 初始化，判断文件夹是否存在
     public Data_store(String dir_) {
-        this.dir = new File(dir_);
+        this.dir = new File(dir_ + "/" + "DATA");
         if (!dir.exists() && !dir.isDirectory()) {
             dir.mkdirs();
             System.out.println("文件夹新建成功");
